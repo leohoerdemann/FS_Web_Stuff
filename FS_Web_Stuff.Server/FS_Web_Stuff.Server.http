@@ -1,0 +1,6 @@
+@FS_Web_Stuff.Server_HostAddress = http://localhost:5084
+
+GET {{FS_Web_Stuff.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
