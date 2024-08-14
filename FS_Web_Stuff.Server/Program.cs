@@ -24,7 +24,7 @@ namespace FS_Web_Stuff.Server
             //{
                 app.UseSwagger();
                 app.UseSwaggerUI();
-            //}
+            ///}
 
             app.UseHttpsRedirection();
 
