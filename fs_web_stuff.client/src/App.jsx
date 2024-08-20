@@ -18,12 +18,12 @@ function App() {
                 </tr>
             </thead>
             <tbody>
-                {playerCounts.map(count =>
-                    <tr key={count.region}>
-                        <td>{count.region}</td>
-                        <td>{count.playerCount}</td>
+                {Object.entries(playerCounts).map(([region, playerCount]) => (
+                    <tr key={region}>
+                        <td>{region}</td>
+                        <td>{playerCount}</td>
                     </tr>
-                )}
+                ))}
             </tbody>
         </table>;
 
