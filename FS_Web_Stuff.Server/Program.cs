@@ -1,3 +1,4 @@
+using FS_Web_Stuff.Server.WebSocketHandlers;
 
 namespace FS_Web_Stuff.Server
 {
@@ -20,35 +21,48 @@ namespace FS_Web_Stuff.Server
             app.UseStaticFiles();
 
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
+            //if (app.Environment.IsDevelopment())
+            //{
                 app.UseSwagger();
                 app.UseSwaggerUI();
-            }
+            ///}
 
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
 
-            var summaries = new[]
-            {
-                "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-            };
+            app.UseWebSockets(
+                new WebSocketOptions()
+                {
+                    KeepAliveInterval = TimeSpan.FromSeconds(120),
+                });
 
-            app.MapGet("/weatherforecast", (HttpContext httpContext) =>
+            var gameWS = new WebSocketHandlerGame();
+
+            app.Map("/wsgame", async context =>
+                {
+                    await gameWS.HandleWebSocketAsync(context);
+                }
+            );
+
+            //var twitchWS = new WebSocketHandlerTwitch();
+
+            //app.Map("/wstwitch", twitchWS.HandleWebSocketAsync);
+
+            app.MapGet("/playercounts", () =>
             {
-                var forecast = Enumerable.Range(1, 5).Select(index =>
-                    new WeatherForecast
-                    {
-                        Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                        TemperatureC = Random.Shared.Next(-20, 55),
-                        Summary = summaries[Random.Shared.Next(summaries.Length)]
-                    })
-                    .ToArray();
-                return forecast;
-            })
-            .WithName("GetWeatherForecast")
-            .WithOpenApi();
+                var random = new Random();
+                var counties = new List<string> { "America", "Mexico", "Europe" };
+                var results = new Dictionary<string, int>();
+
+                foreach (var county in counties)
+                {
+                    var count = random.Next(1, 100);
+                    results.Add(county, count);
+                }
+
+                return Results.Json(results);
+            });
 
             app.MapFallbackToFile("/index.html");
 
