@@ -39,30 +39,24 @@ namespace FS_Web_Stuff.Server
 
             var gameWS = new WebSocketHandlerGame();
 
-            app.Map("/wsgame", async context =>
+            app.Map("/wsgame/{clientId}", async context =>
                 {
-                    await gameWS.HandleWebSocketAsync(context);
+                    var clientId = context.Request.RouteValues["clientId"].ToString();
+                    await gameWS.HandleWebSocketAsync(context, clientId);
                 }
-            );
+            )
+            .WithName("GameWebSocket")
+            .WithOpenApi();
 
-            //var twitchWS = new WebSocketHandlerTwitch();
+            var twitchWS = new WebSocketHandlerTwitch(gameWS);
 
-            //app.Map("/wstwitch", twitchWS.HandleWebSocketAsync);
-
-            app.MapGet("/playercounts", () =>
-            {
-                var random = new Random();
-                var counties = new List<string> { "America", "Mexico", "Europe" };
-                var results = new Dictionary<string, int>();
-
-                foreach (var county in counties)
+            app.Map("/wstwitch", async context =>
                 {
-                    var count = random.Next(1, 100);
-                    results.Add(county, count);
+                    await twitchWS.HandleWebSocketAsync(context);
                 }
-
-                return Results.Json(results);
-            });
+            )
+            .WithName("TwitchWebSocket")
+            .WithOpenApi();
 
             app.MapFallbackToFile("/index.html");
 

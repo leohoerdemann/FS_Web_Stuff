@@ -1,5 +1,6 @@
 ﻿namespace FS_Web_Stuff.Server.WebSocketHandlers
 {
+    using System.Collections.Concurrent;
     using System.Net.WebSockets;
     using System.Text;
     using System.Threading;
@@ -9,12 +10,15 @@
     public class WebSocketHandlerGame
     {
 
-        public async Task HandleWebSocketAsync(HttpContext context)
+        private static ConcurrentDictionary<string, WebSocket> unityClients = new ConcurrentDictionary<string, WebSocket>();
+
+        public async Task HandleWebSocketAsync(HttpContext context, string clientId)
         {
             if (context.WebSockets.IsWebSocketRequest)
             {
-                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                await EchoAsync(webSocket);
+                var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                unityClients.TryAdd(clientId, webSocket);
+                await ReceiveUnityMessagesAsync(webSocket, clientId);
             }
             else
             {
@@ -22,24 +26,31 @@
             }
         }
 
-        private async Task EchoAsync(WebSocket webSocket)
+        private async Task ReceiveUnityMessagesAsync(WebSocket webSocket, string clientId)
         {
             var buffer = new byte[1024 * 4];
             WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
             while (!result.CloseStatus.HasValue)
             {
-                var receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var responseMessage = "Message received: " + receivedMessage;
-                var responseBytes = Encoding.UTF8.GetBytes(responseMessage);
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                // Handle messages from Unity clients
 
-                await webSocket.SendAsync(new ArraySegment<byte>(responseBytes, 0, responseBytes.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
-
+                // Optionally, forward messages to React clients
                 result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
             }
 
+            unityClients.TryRemove(clientId, out _);
             await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
         }
 
+        public async Task SendMessageToUnityClient(string clientId, string message)
+        {
+            if (unityClients.TryGetValue(clientId, out var webSocket) && webSocket.State == WebSocketState.Open)
+            {
+                var responseBytes = Encoding.UTF8.GetBytes(message);
+                await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+        }
     }
 }
