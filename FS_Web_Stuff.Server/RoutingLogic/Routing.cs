@@ -11,9 +11,6 @@ namespace FS_Web_Stuff.Server.RoutingLogic
         // Map streamer IDs to a dictionary of viewer IDs to their WebSocket connections
         private static ConcurrentDictionary<string, ConcurrentDictionary<string, WebSocket>> twitchSockets = new ConcurrentDictionary<string, ConcurrentDictionary<string, WebSocket>>();
 
-        // Map streamer IDs to their game state (started or not)
-        private static ConcurrentDictionary<string, bool> gameStates = new ConcurrentDictionary<string, bool>();
-
         // Add game socket for a streamer
         public static void AddGameSocket(string streamerId, WebSocket socket)
         {
@@ -54,17 +51,6 @@ namespace FS_Web_Stuff.Server.RoutingLogic
         {
             twitchSockets.TryGetValue(streamerId, out var viewers);
             return viewers;
-        }
-
-        // Game state management
-        public static bool IsGameStarted(string streamerId)
-        {
-            return gameStates.TryGetValue(streamerId, out var started) && started;
-        }
-
-        public static void SetGameStarted(string streamerId, bool started)
-        {
-            gameStates[streamerId] = started;
         }
     }
 }
