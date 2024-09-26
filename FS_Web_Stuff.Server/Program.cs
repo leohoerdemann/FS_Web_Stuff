@@ -37,24 +37,13 @@ namespace FS_Web_Stuff.Server
                     KeepAliveInterval = TimeSpan.FromSeconds(120),
                 });
 
-            var gameWS = new WebSocketHandlerGame();
 
-            app.Map("/wsgame/{clientId}", async context =>
-                {
-                    var clientId = context.Request.RouteValues["clientId"].ToString();
-                    await gameWS.HandleWebSocketAsync(context, clientId);
-                }
-            )
+            app.Map("/ws/game/", WebSocketHandlerGame.HandleGameWebSocket)
             .WithName("GameWebSocket")
             .WithOpenApi();
 
-            var twitchWS = new WebSocketHandlerTwitch(gameWS);
 
-            app.Map("/wstwitch", async context =>
-                {
-                    await twitchWS.HandleWebSocketAsync(context);
-                }
-            )
+            app.Map("/ws/twitch/", WebSocketHandlerTwitch.HandleTwitchWebSocket)
             .WithName("TwitchWebSocket")
             .WithOpenApi();
 

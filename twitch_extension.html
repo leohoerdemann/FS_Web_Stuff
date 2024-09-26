@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Twitch Extension</title>
+  <!-- Twitch Extension Helper -->
+  <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+  <style>
+    html, body, iframe {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    iframe {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Iframe to load the React app -->
+  <iframe id="react-app" src="" allowfullscreen></iframe>
+
+  <script>
+    // Wait for the Twitch Extension helper to be ready
+    window.Twitch.ext.onAuthorized(function(auth) {
+      // Extract the JWT token and other information
+      const token = auth.token; // JWT token
+      const channelId = auth.channelId; // Streamer ID
+      const clientId = auth.clientId; // Extension Client ID
+      const userId = auth.userId; // Viewer ID (may be null if anonymous)
+
+      // Build the URL to your React app, including viewer and streamer info
+      const reactAppUrl = 'https://your-react-app-url.com'; // Replace with your React app URL
+
+      // Pass the viewer and streamer info as URL parameters
+      const iframeSrc = `${reactAppUrl}?streamer=${encodeURIComponent(channelId)}&viewer=${encodeURIComponent(userId || 'anonymous')}`;
+
+      // Set the iframe's src attribute to load the React app
+      document.getElementById('react-app').src = iframeSrc;
+    });
+  </script>
+</body>
+</html>

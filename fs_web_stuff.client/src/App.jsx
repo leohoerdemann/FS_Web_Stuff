@@ -1,63 +1,174 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import './App.css';
 
 function App() {
+    const [streamerId, setStreamerId] = useState(null);
+    const [viewerId, setViewerId] = useState(null);
     const [socket, setSocket] = useState(null);
-    const [twitchUsername, setTwitchUsername] = useState("");
-    const [gameData, setGameData] = useState({ health: 0, damage: 0, speed: 0 });
+    const [personalStamina, setPersonalStamina] = useState(100);
+    const [sharedStamina, setSharedStamina] = useState(0);
+    const [gameStarted, setGameStarted] = useState(false); // New state variable
+    const maxPersonalStamina = 100;
+    const maxSharedStamina = 100;
 
     useEffect(() => {
-        if (twitchUsername) {
-            const ws = new WebSocket(`wstwitch`);
+        // Function to extract query parameters from the URL
+        const getQueryParams = () => {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                streamer: params.get('streamer'),
+                viewer: params.get('viewer'),
+            };
+        };
+
+        const { streamer, viewer } = getQueryParams();
+
+        if (streamer && viewer) {
+            setStreamerId(streamer);
+            setViewerId(viewer);
+
+            // Establish WebSocket connection
+            const ws = new WebSocket(`wss://yourserver.com/ws/twitch?streamer=${encodeURIComponent(streamer)}&viewer=${encodeURIComponent(viewer)}`);
 
             ws.onopen = () => {
-                console.log('Connected to Website WebSocket');
+                console.log('WebSocket connected');
             };
 
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                setGameData(data);
-                console.log('Received game data:', data);
+                const message = event.data;
+                try {
+                    const data = JSON.parse(message);
+                    const command = data.command;
+
+                    if (command === 'UPDATE_SHARED_STAMINA') {
+                        setSharedStamina(data.stamina);
+                    } else if (command === 'GAME_STARTED') {
+                        setGameStarted(true);
+                    } else if (command === 'GAME_STOPPED') {
+                        setGameStarted(false);
+                    }
+                    // Handle other commands if necessary
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
             };
 
             ws.onclose = () => {
-                console.log('Disconnected from WebSocket');
+                console.log('WebSocket disconnected');
             };
 
             setSocket(ws);
-            return () => ws.close();
-        }
-    }, [twitchUsername]);
 
-    const sendSpawnEnemyCommand = (enemyType) => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            const message = {
-                target: twitchUsername,
-                spawnEnemy: enemyType
+            return () => {
+                ws.close();
             };
-            socket.send(JSON.stringify(message));
+        } else {
+            console.error('Streamer or viewer ID not found in URL parameters.');
+        }
+    }, []);
+
+    // Personal stamina auto-regeneration
+    useEffect(() => {
+        if (gameStarted) { // Only regenerate stamina when game has started
+            const regenInterval = setInterval(() => {
+                setPersonalStamina((prev) => Math.min(prev + 1, maxPersonalStamina));
+            }, 1000);
+
+            return () => clearInterval(regenInterval);
+        }
+    }, [gameStarted]);
+
+    const usePersonalStamina = (cost) => {
+        if (personalStamina >= cost && socket && gameStarted) {
+            setPersonalStamina(personalStamina - cost);
+
+            const message = JSON.stringify({
+                command: 'USE_PERSONAL_STAMINA',
+                data: {
+                    cost: cost,
+                    viewer: viewerId,
+                },
+            });
+
+            socket.send(message);
         }
     };
 
-    return (
-        <div>
-            <h1 id="tableLabel">Game Control</h1>
-            <p>Control the game via WebSocket</p>
+    const useSharedStamina = (cost) => {
+        if (sharedStamina >= cost && socket && gameStarted) {
+            const message = JSON.stringify({
+                command: 'USE_SHARED_STAMINA',
+                data: {
+                    cost: cost,
+                    viewer: viewerId,
+                },
+            });
 
-            <input
-                type="text"
-                placeholder="Enter Twitch Username"
-                value={twitchUsername}
-                onChange={(e) => setTwitchUsername(e.target.value)}
-            />
-            <div>
-                <p>Health: {gameData.health}</p>
-                <p>Damage: {gameData.damage}</p>
-                <p>Speed: {gameData.speed}</p>
+            socket.send(message);
+        }
+    };
+
+    if (!streamerId || !viewerId) {
+        return (
+            <div className="app-container">
+                <p>Error: Streamer or viewer information not available.</p>
             </div>
-            <button onClick={() => sendSpawnEnemyCommand('enemyType1')}>Spawn Enemy 1</button>
-            <button onClick={() => sendSpawnEnemyCommand('enemyType2')}>Spawn Enemy 2</button>
-            <button onClick={() => sendSpawnEnemyCommand('enemyType3')}>Spawn Enemy 3</button>
+        );
+    }
+
+    if (!gameStarted) {
+        return (
+            <div className="app-container">
+                <p className="waiting-message">Waiting for game to start...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="app-container">
+            <h5>Personal Stamina</h5>
+            <div className="stamina-bar">
+                <div
+                    className="stamina-fill"
+                    style={{ width: `${(personalStamina / maxPersonalStamina) * 100}%` }}
+                ></div>
+            </div>
+            <div className="stamina-text">
+                {personalStamina}/{maxPersonalStamina}
+            </div>
+            <div className="button-group">
+                <button onClick={() => usePersonalStamina(10)} disabled={personalStamina < 10}>
+                    Action 1 (-10)
+                </button>
+                <button onClick={() => usePersonalStamina(20)} disabled={personalStamina < 20}>
+                    Action 2 (-20)
+                </button>
+                <button onClick={() => usePersonalStamina(30)} disabled={personalStamina < 30}>
+                    Action 3 (-30)
+                </button>
+            </div>
+
+            <h5>Shared Stamina</h5>
+            <div className="stamina-bar">
+                <div
+                    className="stamina-fill shared"
+                    style={{ width: `${(sharedStamina / maxSharedStamina) * 100}%` }}
+                ></div>
+            </div>
+            <div className="stamina-text">
+                {sharedStamina}/{maxSharedStamina}
+            </div>
+            <div className="button-group">
+                <button onClick={() => useSharedStamina(15)} disabled={sharedStamina < 15}>
+                    Group Action 1 (-15)
+                </button>
+                <button onClick={() => useSharedStamina(25)} disabled={sharedStamina < 25}>
+                    Group Action 2 (-25)
+                </button>
+                <button onClick={() => useSharedStamina(35)} disabled={sharedStamina < 35}>
+                    Group Action 3 (-35)
+                </button>
+            </div>
         </div>
     );
 }
