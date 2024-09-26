@@ -28,7 +28,7 @@ function App() {
             setViewerId(viewer);
 
             // Establish WebSocket connection
-            const ws = new WebSocket(`wss://yourserver.com/ws/twitch?streamer=${encodeURIComponent(streamer)}&viewer=${encodeURIComponent(viewer)}`);
+            const ws = new WebSocket(`wss://bts.freakshowgame.com/ws/twitch?streamer=${encodeURIComponent(streamer)}&viewer=${encodeURIComponent(viewer)}`);
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
