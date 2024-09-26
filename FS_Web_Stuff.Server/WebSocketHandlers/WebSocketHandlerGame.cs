@@ -1,45 +1,141 @@
-﻿namespace FS_Web_Stuff.Server.WebSocketHandlers
+﻿using FS_Web_Stuff.Server.RoutingLogic;
+using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Net.WebSockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace FS_Web_Stuff.Server.WebSocketHandlers
 {
-    using System.Net.WebSockets;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-
-    public class WebSocketHandlerGame
+    public static class WebSocketHandlerGame
     {
 
-        public async Task HandleWebSocketAsync(HttpContext context)
+        public static async Task HandleGameWebSocket(HttpContext context)
         {
             if (context.WebSockets.IsWebSocketRequest)
             {
-                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                await EchoAsync(webSocket);
+                var query = context.Request.Query;
+
+                if (!query.ContainsKey("streamer"))
+                {
+                    context.Response.StatusCode = 400;
+                    await context.Response.WriteAsync("Missing streamer ID");
+                    return;
+                }
+
+                var streamerId = query["streamer"].ToString();
+                var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+
+                await Handle(context, webSocket, streamerId);
             }
             else
             {
-                context.Response.StatusCode = 400; // Bad Request
+                context.Response.StatusCode = 400;
             }
         }
 
-        private async Task EchoAsync(WebSocket webSocket)
+        private static async Task Handle(HttpContext context, WebSocket webSocket, string streamerId)
         {
+            // Add the game socket to the routing
+            Routing.AddGameSocket(streamerId, webSocket);
+
             var buffer = new byte[1024 * 4];
-            WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-            while (!result.CloseStatus.HasValue)
+            try
             {
-                var receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var responseMessage = "Message received: " + receivedMessage;
-                var responseBytes = Encoding.UTF8.GetBytes(responseMessage);
+                while (webSocket.State == WebSocketState.Open)
+                {
+                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
-                await webSocket.SendAsync(new ArraySegment<byte>(responseBytes, 0, responseBytes.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        break;
+                    }
 
-                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    // Handle incoming messages from the game
+                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                    try
+                    {
+                        var json = JObject.Parse(message);
+                        var command = json["command"]?.ToString();
+
+                        switch (command)
+                        {
+                            case "GAME_STARTED":
+                                await HandleGameStarted(streamerId, message);
+                                break;
+
+                            case "GAME_STOPPED":
+                                await HandleGameStopped(streamerId, message);
+                                break;
+
+                            // Add more cases as needed for other commands
+                            default:
+                                Console.WriteLine($"Unknown command received from game: {command}");
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error parsing message from game: {ex.Message}");
+                    }
+                }
             }
-
-            await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Game socket error: {ex.Message}");
+            }
+            finally
+            {
+                // Remove the game socket when done
+                Routing.RemoveGameSocket(streamerId);
+                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+            }
         }
 
+        private static async Task HandleGameStarted(string streamerId, string message)
+        {
+            // Broadcast the "GAME_STARTED" message to all connected viewers
+            var viewers = Routing.GetViewerSockets(streamerId);
+            if (viewers != null)
+            {
+                foreach (var viewerSocket in viewers.Values)
+                {
+                    if (viewerSocket.State == WebSocketState.Open)
+                    {
+                        await viewerSocket.SendAsync(
+                            new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)),
+                            WebSocketMessageType.Text,
+                            true,
+                            CancellationToken.None
+                        );
+                    }
+                }
+            }
+        }
+
+        private static async Task HandleGameStopped(string streamerId, string message)
+        {
+            // Broadcast the "GAME_STOPPED" message to all connected viewers
+            var viewers = Routing.GetViewerSockets(streamerId);
+            if (viewers != null)
+            {
+                foreach (var viewerSocket in viewers.Values)
+                {
+                    if (viewerSocket.State == WebSocketState.Open)
+                    {
+                        await viewerSocket.SendAsync(
+                            new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)),
+                            WebSocketMessageType.Text,
+                            true,
+                            CancellationToken.None
+                        );
+                    }
+                }
+            }
+        }
     }
 }

@@ -37,32 +37,15 @@ namespace FS_Web_Stuff.Server
                     KeepAliveInterval = TimeSpan.FromSeconds(120),
                 });
 
-            var gameWS = new WebSocketHandlerGame();
 
-            app.Map("/wsgame", async context =>
-                {
-                    await gameWS.HandleWebSocketAsync(context);
-                }
-            );
+            app.Map("/ws/game/", WebSocketHandlerGame.HandleGameWebSocket)
+            .WithName("GameWebSocket")
+            .WithOpenApi();
 
-            //var twitchWS = new WebSocketHandlerTwitch();
 
-            //app.Map("/wstwitch", twitchWS.HandleWebSocketAsync);
-
-            app.MapGet("/playercounts", () =>
-            {
-                var random = new Random();
-                var counties = new List<string> { "America", "Mexico", "Europe" };
-                var results = new Dictionary<string, int>();
-
-                foreach (var county in counties)
-                {
-                    var count = random.Next(1, 100);
-                    results.Add(county, count);
-                }
-
-                return Results.Json(results);
-            });
+            app.Map("/ws/twitch/", WebSocketHandlerTwitch.HandleTwitchWebSocket)
+            .WithName("TwitchWebSocket")
+            .WithOpenApi();
 
             app.MapFallbackToFile("/index.html");
 
