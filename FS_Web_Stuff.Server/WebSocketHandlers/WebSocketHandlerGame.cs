@@ -70,11 +70,11 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
                                 break;
 
                             case "GAME_STARTED":
-                                await HandleGameStarted(streamerId, message);
+                                await HandleGameStarted(streamerId);
                                 break;
 
                             case "GAME_STOPPED":
-                                await HandleGameStopped(streamerId, message);
+                                await HandleGameStopped(streamerId);
                                 break;
 
                             // Add more cases as needed for other commands
