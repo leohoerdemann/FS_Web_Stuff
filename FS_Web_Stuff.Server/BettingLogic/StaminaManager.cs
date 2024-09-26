@@ -19,7 +19,18 @@ namespace FS_Web_Stuff.Server.BettingLogic
 
         public static async Task IncreaseSharedStamina(string streamerId, int amount)
         {
-            sharedStamina.AddOrUpdate(streamerId, amount, (key, oldValue) => oldValue + amount);
+            // Calculate the number of connected viewers
+            var viewerSockets = Routing.GetViewerSockets(streamerId);
+            int viewerCount = viewerSockets != null && viewerSockets.Count > 0 ? viewerSockets.Count : 1; // Avoid division by zero
+
+            // Calculate the amount to add
+            int amountToAdd = amount / (viewerCount * 10);
+
+            sharedStamina.AddOrUpdate(streamerId, amountToAdd, (key, oldValue) => oldValue + amountToAdd);
+
+            // Ensure stamina doesn't exceed 100%
+            if (sharedStamina[streamerId] > 100)
+                sharedStamina[streamerId] = 100;
 
             // Broadcast new shared stamina to all viewers
             await BroadcastSharedStamina(streamerId);

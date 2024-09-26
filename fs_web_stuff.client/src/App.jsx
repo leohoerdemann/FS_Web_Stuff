@@ -7,12 +7,13 @@ function App() {
     const [socket, setSocket] = useState(null);
     const [personalStamina, setPersonalStamina] = useState(100);
     const [sharedStamina, setSharedStamina] = useState(0);
-    const [gameStarted, setGameStarted] = useState(false); // New state variable
+    const [gameStarted, setGameStarted] = useState(false);
+    const [personalStaminaValues, setPersonalStaminaValues] = useState({});
+    const [audienceStaminaValues, setAudienceStaminaValues] = useState({});
     const maxPersonalStamina = 100;
     const maxSharedStamina = 100;
 
     useEffect(() => {
-        // Function to extract query parameters from the URL
         const getQueryParams = () => {
             const params = new URLSearchParams(window.location.search);
             return {
@@ -27,7 +28,6 @@ function App() {
             setStreamerId(streamer);
             setViewerId(viewer);
 
-            // Establish WebSocket connection
             const ws = new WebSocket(`wss://bts.freakshowgame.com/ws/twitch?streamer=${encodeURIComponent(streamer)}&viewer=${encodeURIComponent(viewer)}`);
 
             ws.onopen = () => {
@@ -46,8 +46,10 @@ function App() {
                         setGameStarted(true);
                     } else if (command === 'GAME_STOPPED') {
                         setGameStarted(false);
+                    } else if (command === 'SET_SITE_VALUES') {
+                        setPersonalStaminaValues(data.data.personalStaminaValues);
+                        setAudienceStaminaValues(data.data.audienceStaminaValues);
                     }
-                    // Handle other commands if necessary
                 } catch (e) {
                     console.error('Error parsing message:', e);
                 }
@@ -69,7 +71,7 @@ function App() {
 
     // Personal stamina auto-regeneration
     useEffect(() => {
-        if (gameStarted) { // Only regenerate stamina when game has started
+        if (gameStarted) {
             const regenInterval = setInterval(() => {
                 setPersonalStamina((prev) => Math.min(prev + 1, maxPersonalStamina));
             }, 1000);
@@ -78,7 +80,8 @@ function App() {
         }
     }, [gameStarted]);
 
-    const usePersonalStamina = (cost) => {
+    const usePersonalStamina = (size) => {
+        const cost = personalStaminaValues[size];
         if (personalStamina >= cost && socket && gameStarted) {
             setPersonalStamina(personalStamina - cost);
 
@@ -87,6 +90,7 @@ function App() {
                 data: {
                     cost: cost,
                     viewer: viewerId,
+                    size: size,
                 },
             });
 
@@ -94,13 +98,15 @@ function App() {
         }
     };
 
-    const useSharedStamina = (cost) => {
+    const useSharedStamina = (size) => {
+        const cost = audienceStaminaValues[size];
         if (sharedStamina >= cost && socket && gameStarted) {
             const message = JSON.stringify({
                 command: 'USE_SHARED_STAMINA',
                 data: {
                     cost: cost,
                     viewer: viewerId,
+                    size: size,
                 },
             });
 
@@ -134,17 +140,17 @@ function App() {
                 ></div>
             </div>
             <div className="stamina-text">
-                {personalStamina}/{maxPersonalStamina}
+                {Math.round((personalStamina / maxPersonalStamina) * 100)}%
             </div>
             <div className="button-group">
-                <button onClick={() => usePersonalStamina(10)} disabled={personalStamina < 10}>
-                    Action 1 (-10)
+                <button onClick={() => usePersonalStamina('small')} disabled={personalStamina < personalStaminaValues.small}>
+                    Action Small (-{personalStaminaValues.small || '...'})
                 </button>
-                <button onClick={() => usePersonalStamina(20)} disabled={personalStamina < 20}>
-                    Action 2 (-20)
+                <button onClick={() => usePersonalStamina('medium')} disabled={personalStamina < personalStaminaValues.medium}>
+                    Action Medium (-{personalStaminaValues.medium || '...'})
                 </button>
-                <button onClick={() => usePersonalStamina(30)} disabled={personalStamina < 30}>
-                    Action 3 (-30)
+                <button onClick={() => usePersonalStamina('large')} disabled={personalStamina < personalStaminaValues.large}>
+                    Action Large (-{personalStaminaValues.large || '...'})
                 </button>
             </div>
 
@@ -156,17 +162,17 @@ function App() {
                 ></div>
             </div>
             <div className="stamina-text">
-                {sharedStamina}/{maxSharedStamina}
+                {Math.round((sharedStamina / maxSharedStamina) * 100)}%
             </div>
             <div className="button-group">
-                <button onClick={() => useSharedStamina(15)} disabled={sharedStamina < 15}>
-                    Group Action 1 (-15)
+                <button onClick={() => useSharedStamina('small')} disabled={sharedStamina < audienceStaminaValues.small}>
+                    Group Action Small (-{audienceStaminaValues.small || '...'})
                 </button>
-                <button onClick={() => useSharedStamina(25)} disabled={sharedStamina < 25}>
-                    Group Action 2 (-25)
+                <button onClick={() => useSharedStamina('medium')} disabled={sharedStamina < audienceStaminaValues.medium}>
+                    Group Action Medium (-{audienceStaminaValues.medium || '...'})
                 </button>
-                <button onClick={() => useSharedStamina(35)} disabled={sharedStamina < 35}>
-                    Group Action 3 (-35)
+                <button onClick={() => useSharedStamina('large')} disabled={sharedStamina < audienceStaminaValues.large}>
+                    Group Action Large (-{audienceStaminaValues.large || '...'})
                 </button>
             </div>
         </div>

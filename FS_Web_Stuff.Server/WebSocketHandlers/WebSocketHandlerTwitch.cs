@@ -49,6 +49,16 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
                 // Send initial shared stamina to the viewer
                 await StaminaManager.SendSharedStamina(streamerId, webSocket);
 
+                // Send current game state to the viewer
+                bool gameStarted = Routing.IsGameStarted(streamerId);
+                var gameStateMessage = new
+                {
+                    command = gameStarted ? "GAME_STARTED" : "GAME_STOPPED"
+                };
+                var messageString = Newtonsoft.Json.JsonConvert.SerializeObject(gameStateMessage);
+                var messageBuffer = Encoding.UTF8.GetBytes(messageString);
+                await webSocket.SendAsync(new ArraySegment<byte>(messageBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
+
                 while (webSocket.State == WebSocketState.Open)
                 {
                     var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -64,7 +74,7 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
                     try
                     {
                         var json = JObject.Parse(message);
-                        var command = json["command"].ToString();
+                        var command = json["command"]?.ToString();
                         var data = json["data"];
 
                         if (command == "USE_PERSONAL_STAMINA")

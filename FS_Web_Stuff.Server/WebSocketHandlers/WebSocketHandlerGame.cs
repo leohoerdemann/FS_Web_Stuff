@@ -41,10 +41,16 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
             // Add the game socket to the routing
             Routing.AddGameSocket(streamerId, webSocket);
 
+            // Set the game as started
+            Routing.SetGameStarted(streamerId, true);
+
             var buffer = new byte[1024 * 4];
 
             try
             {
+                // Notify viewers that the game has started
+                await HandleGameStarted(streamerId);
+
                 while (webSocket.State == WebSocketState.Open)
                 {
                     var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -64,12 +70,8 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
 
                         switch (command)
                         {
-                            case "GAME_STARTED":
-                                await HandleGameStarted(streamerId, message);
-                                break;
-
-                            case "GAME_STOPPED":
-                                await HandleGameStopped(streamerId, message);
+                            case "SET_SITE_VALUES":
+                                await HandleSetSiteValues(streamerId, message);
                                 break;
 
                             // Add more cases as needed for other commands
@@ -92,34 +94,45 @@ namespace FS_Web_Stuff.Server.WebSocketHandlers
             {
                 // Remove the game socket when done
                 Routing.RemoveGameSocket(streamerId);
+
+                // Set the game as stopped
+                Routing.SetGameStarted(streamerId, false);
+
+                // Notify viewers that the game has stopped
+                await HandleGameStopped(streamerId);
+
                 await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
             }
         }
 
-        private static async Task HandleGameStarted(string streamerId, string message)
+        private static async Task HandleGameStarted(string streamerId)
         {
-            // Broadcast the "GAME_STARTED" message to all connected viewers
-            var viewers = Routing.GetViewerSockets(streamerId);
-            if (viewers != null)
+            var message = new
             {
-                foreach (var viewerSocket in viewers.Values)
-                {
-                    if (viewerSocket.State == WebSocketState.Open)
-                    {
-                        await viewerSocket.SendAsync(
-                            new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)),
-                            WebSocketMessageType.Text,
-                            true,
-                            CancellationToken.None
-                        );
-                    }
-                }
-            }
+                command = "GAME_STARTED"
+            };
+            var messageString = Newtonsoft.Json.JsonConvert.SerializeObject(message);
+            await BroadcastToViewers(streamerId, messageString);
         }
 
-        private static async Task HandleGameStopped(string streamerId, string message)
+        private static async Task HandleGameStopped(string streamerId)
         {
-            // Broadcast the "GAME_STOPPED" message to all connected viewers
+            var message = new
+            {
+                command = "GAME_STOPPED"
+            };
+            var messageString = Newtonsoft.Json.JsonConvert.SerializeObject(message);
+            await BroadcastToViewers(streamerId, messageString);
+        }
+
+        private static async Task HandleSetSiteValues(string streamerId, string message)
+        {
+            // Broadcast the "SET_SITE_VALUES" message to all connected viewers
+            await BroadcastToViewers(streamerId, message);
+        }
+
+        private static async Task BroadcastToViewers(string streamerId, string message)
+        {
             var viewers = Routing.GetViewerSockets(streamerId);
             if (viewers != null)
             {
